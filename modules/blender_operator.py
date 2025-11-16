@@ -1,5 +1,6 @@
 import subprocess
 import json
+from pathlib import Path
 
 
 class BlenderOperator:
@@ -10,7 +11,10 @@ class BlenderOperator:
 
     def process_model(self, fbx_path, work_dirs):
         print(f"Обработка геометрии в Blender: {fbx_path.name}")
-        blender_script = self.generate_blender_script(fbx_path, work_dirs)
+        output_dir = Path(work_dirs.get('model_output', work_dirs['output'])).resolve()
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        blender_script = self.generate_blender_script(fbx_path, output_dir)
         script_path = work_dirs['temp'] / "blender_processor.py"
 
         with open(script_path, 'w', encoding='utf-8') as f:
@@ -35,7 +39,7 @@ class BlenderOperator:
 
             if result.returncode == 0:
                 print("Обработка в Blender завершена успешно")
-                return self.get_processed_data(fbx_path, work_dirs)
+                return self.get_processed_data(fbx_path, output_dir)
             else:
                 print(f"Ошибка Blender: {result.stderr}")
                 return None
@@ -47,13 +51,15 @@ class BlenderOperator:
             print(f"Ошибка запуска Blender: {e}")
             return None
 
-    def generate_blender_script(self, fbx_path, work_dirs):
+    def generate_blender_script(self, fbx_path, output_dir):
         lod_levels = self.config['lod']['levels']
         global_scale = self.config['global_settings']['global_scale']
         physics_ratio = self.config['physics']['decimation_ratio']
 
         model_name = fbx_path.stem
-        output_base = work_dirs['output'] / model_name
+        base_output_path = (output_dir / model_name).resolve()
+        base_output_str = str(base_output_path).replace('\\', '/')
+        fbx_path_str = str(fbx_path.resolve()).replace('\\', '/')
 
         script = f"""
 import bpy
@@ -64,7 +70,7 @@ import os
 bpy.ops.wm.read_factory_settings(use_empty=True)
 
 print("Импорт FBX...")
-bpy.ops.import_scene.fbx(filepath=r"{fbx_path}")
+bpy.ops.import_scene.fbx(filepath=r"{fbx_path_str}")
 
 print("Применение масштаба...")
 for obj in bpy.context.scene.objects:
@@ -98,7 +104,8 @@ for i, ratio in enumerate(lod_levels):
         decimate.ratio = ratio
         bpy.ops.object.modifier_apply(modifier=decimate.name)
 
-    lod_path = r"{output_base}_LOD{{i}}.fbx"
+    lod_suffix = "" if i == 0 else "_LOD" + str(i)
+    lod_path = r"{base_output_str}" + lod_suffix + ".fbx"
     bpy.ops.object.select_all(action='DESELECT')
     lod_object.select_set(True)
     bpy.context.view_layer.objects.active = lod_object
@@ -134,7 +141,7 @@ decimate = physics_object.modifiers.new(name="Decimate", type='DECIMATE')
 decimate.ratio = {physics_ratio}
 bpy.ops.object.modifier_apply(modifier=decimate.name)
 
-physics_path = r"{output_base}_physics.fbx"
+physics_path = r"{base_output_str}_physics.fbx"
 bpy.ops.object.select_all(action='DESELECT')
 physics_object.select_set(True)
 bpy.context.view_layer.objects.active = physics_object
@@ -152,11 +159,11 @@ import json
 result_data = {{
     'lod_files': lod_files,
     'physics_file': physics_path,
-    'original_file': r"{fbx_path}",
+    'original_file': r"{fbx_path_str}",
     'scale_applied': {global_scale}
 }}
 
-info_path = r"{output_base}_processing_info.json"
+info_path = r"{base_output_str}_processing_info.json"
 with open(info_path, 'w') as f:
     json.dump(result_data, f, indent=2)
 
@@ -165,8 +172,8 @@ print("Обработка завершена!")
 
         return script
 
-    def get_processed_data(self, fbx_path, work_dirs):
-        info_path = work_dirs['output'] / f"{fbx_path.stem}_processing_info.json"
+    def get_processed_data(self, fbx_path, output_dir):
+        info_path = output_dir / f"{fbx_path.stem}_processing_info.json"
         try:
             with open(info_path, 'r') as f:
                 return json.load(f)
