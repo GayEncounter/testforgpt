@@ -62,6 +62,7 @@ class TextureProcessor:
             normal_map = np.clip(normal_map, 0, 255).astype(np.uint8)
 
             output_path = work_dirs['textures'] / f"{bump_path.stem}_normal.png"
+            output_path.parent.mkdir(parents=True, exist_ok=True)
             cv2.imwrite(str(output_path), normal_map)
 
             print(f"Normal map создана: {output_path.name}")
@@ -100,9 +101,11 @@ class TextureProcessor:
     def save_detail_channels(self, detail_r, detail_g, detail_b, detail_path, work_dirs):
         base_name = detail_path.stem.replace('_detail', '')
 
-        cv2.imwrite(str(work_dirs['details_raw'] / f"{base_name}_detail_R.png"), detail_r)
-        cv2.imwrite(str(work_dirs['details_raw'] / f"{base_name}_detail_G.png"), detail_g)
-        cv2.imwrite(str(work_dirs['details_raw'] / f"{base_name}_detail_B.png"), detail_b)
+        raw_dir = work_dirs['details_raw']
+        raw_dir.mkdir(parents=True, exist_ok=True)
+        cv2.imwrite(str(raw_dir / f"{base_name}_detail_R.png"), detail_r)
+        cv2.imwrite(str(raw_dir / f"{base_name}_detail_G.png"), detail_g)
+        cv2.imwrite(str(raw_dir / f"{base_name}_detail_B.png"), detail_b)
 
         print("Detail каналы сохранены")
 
@@ -132,6 +135,7 @@ class TextureProcessor:
         ).astype(np.uint8)
 
         output_path = work_dirs['details_baked'] / f"{detail_path.stem}_final.png"
+        output_path.parent.mkdir(parents=True, exist_ok=True)
         cv2.imwrite(str(output_path), final_detail)
 
         print(f"Запеченная detail текстура сохранена: {output_path.name}")
@@ -164,6 +168,7 @@ class TextureProcessor:
 
             base_name = original_detail_path.stem.replace('_detail', '')
             output_path = work_dirs['details_baked'] / f"{base_name}_detail_normal.png"
+            output_path.parent.mkdir(parents=True, exist_ok=True)
             cv2.imwrite(str(output_path), normal_map)
 
             print(f"Detail normal map создана: {output_path.name}")
@@ -195,6 +200,7 @@ class TextureProcessor:
                 img = cv2.resize(img, (target_res, target_res))
 
             output_path = work_dirs['textures'] / f"{tex_path.stem}.png"
+            output_path.parent.mkdir(parents=True, exist_ok=True)
             cv2.imwrite(str(output_path), img)
 
             return output_path
