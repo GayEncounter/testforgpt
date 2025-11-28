@@ -180,66 +180,76 @@ public sealed class RailCart : Component
 		SnapToTrack( false );
 	}
 
-	private bool TryConnectToNextRoute( bool movingForward )
-	{
-		var junctionPoint = movingForward ? _currentRoute.Points.Last() : _currentRoute.Points.First();
-		if ( !junctionPoint.IsValid() ) return false;
+private bool TryConnectToNextRoute( bool movingForward )
+{
+    var junctionPoint = movingForward ? _currentRoute.Points.Last() : _currentRoute.Points.First();
+    if ( !junctionPoint.IsValid() ) return false;
 
-		var candidates = new List<PathRoute>();
+    var candidates = new List<PathRoute>();
 
-		foreach ( var route in Network.Routes )
-		{
-			if ( route == _currentRoute ) continue;
-			if ( route.Points.Count < 2 ) continue;
+    foreach ( var route in Network.Routes )
+    {
+        if ( route == _currentRoute ) continue;
+        if ( route.Points.Count < 2 ) continue;
 
-			if ( movingForward )
-			{
-				if ( route.Points.First().WorldPosition.Distance( junctionPoint.WorldPosition ) < 5.0f )
-					candidates.Add( route );
-			}
-			else
-			{
-				if ( route.Points.Last().WorldPosition.Distance( junctionPoint.WorldPosition ) < 5.0f )
-					candidates.Add( route );
-			}
-		}
+        if ( movingForward )
+        {
+            if ( route.Points.First().WorldPosition.Distance( junctionPoint.WorldPosition ) < 5.0f )
+                candidates.Add( route );
+        }
+        else
+        {
+            if ( route.Points.Last().WorldPosition.Distance( junctionPoint.WorldPosition ) < 5.0f )
+                candidates.Add( route );
+        }
+    }
 
-		if ( candidates.Count == 0 ) return false;
+    if ( candidates.Count == 0 ) return false;
 
-		PathRoute chosenRoute = null;
+    PathRoute chosenRoute = null;
 
-		if ( !string.IsNullOrEmpty( _nextRequestedRoute ) )
-		{
-			chosenRoute = candidates.FirstOrDefault( r => r.Name == _nextRequestedRoute );
-		}
+    // 1. Explicit request from switch (last selected route)
+    if ( !string.IsNullOrEmpty( _nextRequestedRoute ) )
+    {
+        chosenRoute = candidates.FirstOrDefault( r => r.Name == _nextRequestedRoute );
+    }
 
-		if ( chosenRoute == null && !string.IsNullOrEmpty( _previousRouteName ) )
-		{
-			chosenRoute = candidates.FirstOrDefault( r => r.Name == _previousRouteName );
-		}
+    // 2. Fallback: try to reconnect to the previous route
+    if ( chosenRoute == null && !string.IsNullOrEmpty( _previousRouteName ) )
+    {
+        chosenRoute = candidates.FirstOrDefault( r => r.Name == _previousRouteName );
+    }
 
-		if ( chosenRoute == null ) chosenRoute = candidates.First();
+    // 3. Final fallback: just take the first candidate
+    if ( chosenRoute == null ) chosenRoute = candidates.First();
 
-		Log.Info( $"[RailCart] Switching track to: '{chosenRoute.Name}'" );
+    Log.Info( $"[RailCart] Switching track to: '{chosenRoute.Name}'" );
 
-		_previousRouteName = RouteName;
-		RouteName = chosenRoute.Name;
-		_currentRoute = chosenRoute;
-		_nextRequestedRoute = "";
+    _previousRouteName = RouteName;
+    RouteName = chosenRoute.Name;
+    _currentRoute = chosenRoute;
 
-		if ( movingForward )
-		{
-			_currentSegmentIndex = 0;
-			_segmentT = 0.0f;
-		}
-		else
-		{
-			_currentSegmentIndex = _currentRoute.Points.Count - 2;
-			_segmentT = 1.0f;
-		}
+    // IMPORTANT:
+    // Do NOT clear _nextRequestedRoute here.
+    // It now represents the last chosen branch (C1/C2)
+    // and will be reused on the next A->B pass until the switch
+    // calls SwitchRoute() again.
+    // _nextRequestedRoute = "";
 
-		return true;
-	}
+    if ( movingForward )
+    {
+        _currentSegmentIndex = 0;
+        _segmentT = 0.0f;
+    }
+    else
+    {
+        _currentSegmentIndex = _currentRoute.Points.Count - 2;
+        _segmentT = 1.0f;
+    }
+
+    return true;
+}
+
 
 	private void SnapToTrack( bool instantRotation = false )
 	{
